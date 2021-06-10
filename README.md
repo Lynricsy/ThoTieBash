@@ -15,6 +15,7 @@
 3. 任意发起一次commit，可以参考下图流程修改readme文件。
 
 - 打开`README.md`，点击修改按钮
+- 
 
 ![](assets/edit.png)
 
