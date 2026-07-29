@@ -40,6 +40,9 @@ jobs:
         env:
           BDUSS: ${{ secrets.BDUSS }}
           SIGN_INTERVAL: ${{ secrets.SIGN_INTERVAL }}
+          # 显式配置：临时跳过未实名账号（1-based）。恢复时改为 "" 或删除本行。
+          # 也可用仓库 Variable SKIP_ACCOUNTS 覆盖：非空则用变量值。
+          SKIP_ACCOUNTS: ${{ vars.SKIP_ACCOUNTS != '' && vars.SKIP_ACCOUNTS || '2' }}
         run: |
           if [ -z "${BDUSS}" ]; then
             echo "缺少 secrets.BDUSS，请在仓库 Settings → Secrets 中配置。"

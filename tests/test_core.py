@@ -18,7 +18,13 @@ from tieba_autosign.client import (
 from tieba_autosign.const import APP_SALT, LOGIN_URL
 from tieba_autosign.crypto import sign_payload
 from tieba_autosign.models import AccountSummary, Forum, ForumSignResult, RunSummary, SignStatus
-from tieba_autosign.runner import account_label, format_summary, load_bduss_list
+from tieba_autosign.runner import (
+    account_label,
+    format_summary,
+    load_bduss_list,
+    parse_skip_accounts,
+    run_all,
+)
 
 
 def test_sign_payload_matches_client_algorithm() -> None:
@@ -48,6 +54,35 @@ def test_resolve_bduss_source_from_file(tmp_path: Path) -> None:
 def test_account_label_has_no_token_fragment() -> None:
     assert account_label(1) == "账号1"
     assert account_label(2) == "账号2"
+
+
+def test_parse_skip_accounts_default_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SKIP_ACCOUNTS", raising=False)
+    assert parse_skip_accounts(None) == set()
+    assert parse_skip_accounts("") == set()
+    assert parse_skip_accounts("2") == {2}
+    assert parse_skip_accounts("2,3 4") == {2, 3, 4}
+
+
+@pytest.mark.asyncio
+async def test_run_all_skips_before_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    called: list[int] = []
+
+    async def fake_run_account(
+        index: int, bduss: str, *, sign_interval: float
+    ) -> AccountSummary:
+        called.append(index)
+        return AccountSummary(index=index, label=account_label(index), success=1)
+
+    monkeypatch.setattr("tieba_autosign.runner.run_account", fake_run_account)
+    summary = await run_all(["token-a", "token-b"], skip_accounts={2})
+
+    assert called == [1]
+    assert summary.accounts[1].skipped is True
+    assert summary.ok
+    assert "已跳过" in format_summary(summary)
 
 
 def test_extract_forums_handles_nested_shapes() -> None:

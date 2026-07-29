@@ -8,7 +8,7 @@ import logging
 import sys
 from pathlib import Path
 
-from .runner import format_summary, load_bduss_list, run_all
+from .runner import format_summary, load_bduss_list, parse_skip_accounts, run_all
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -23,6 +23,15 @@ def build_parser() -> argparse.ArgumentParser:
             "从文件读取 BDUSS（支持多账号分隔）。"
             "使用 '-' 表示从标准输入读取。"
             "默认读取环境变量 BDUSS。"
+        ),
+    )
+    parser.add_argument(
+        "--skip-accounts",
+        default=None,
+        help=(
+            "跳过的账号序号（1-based），例如 2 或 2,3。"
+            "默认读取环境变量 SKIP_ACCOUNTS；未设置则不跳过。"
+            "被跳过账号的凭证仍保留。"
         ),
     )
     parser.add_argument(
@@ -72,6 +81,7 @@ def main(argv: list[str] | None = None) -> int:
     log_level = str(args.log_level)
     interval = float(args.interval)
     bduss_file = args.bduss_file
+    skip_raw = args.skip_accounts
     configure_logging(log_level)
 
     bduss_list = resolve_bduss_source(
@@ -84,7 +94,20 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    summary = asyncio.run(run_all(bduss_list, sign_interval=interval))
+    # 应用默认：不跳过；仅当 CLI/环境显式配置时才跳过
+    skip_accounts = parse_skip_accounts(
+        None if skip_raw is None else str(skip_raw)
+    )
+    if skip_accounts:
+        logging.info("跳过账号序号: %s", sorted(skip_accounts))
+
+    summary = asyncio.run(
+        run_all(
+            bduss_list,
+            sign_interval=interval,
+            skip_accounts=skip_accounts,
+        )
+    )
     print(format_summary(summary))
     return 0 if summary.ok else 1
 

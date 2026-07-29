@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Sequence
+import re
+from collections.abc import Iterable, Sequence
 
 from .client import TiebaAuthError, TiebaClient
 from .models import AccountSummary, RunSummary, SignStatus
@@ -41,6 +42,28 @@ def load_bduss_list(raw: str | None = None) -> list[str]:
     return parts
 
 
+def parse_skip_accounts(raw: str | None = None) -> set[int]:
+    """
+    解析要跳过的账号序号（1-based）。
+
+    默认不跳过任何账号。
+    - raw 显式传入时用 raw
+    - raw 为 None 时读环境变量 SKIP_ACCOUNTS（可为空）
+
+    格式：`2` / `2,3` / `2 3`
+    只过滤执行，不删除凭证。
+    """
+    if raw is None:
+        text = os.environ.get("SKIP_ACCOUNTS", "")
+    else:
+        text = raw
+    if not text or not str(text).strip():
+        return set()
+
+    found = re.findall(r"\d+", str(text))
+    return {int(item) for item in found if int(item) > 0}
+
+
 async def run_account(index: int, bduss: str, *, sign_interval: float) -> AccountSummary:
     """执行单个账号签到。"""
     label = account_label(index)
@@ -52,7 +75,7 @@ async def run_account(index: int, bduss: str, *, sign_interval: float) -> Accoun
             forums = await client.list_favorite_forums()
             summary.forums = len(forums)
             if not forums:
-                logger.warning("%s 未获取到关注贴吧", label)
+                logger.warning("%s 未获取到关注项", label)
                 return summary
 
             details = await client.sign_all(forums, tbs)
@@ -80,12 +103,22 @@ async def run_all(
     bduss_list: Sequence[str],
     *,
     sign_interval: float = 0.8,
+    skip_accounts: Iterable[int] | None = None,
 ) -> RunSummary:
-    """串行处理多账号，避免同出口 IP 并发过高。"""
+    """串行处理多账号；跳过列表在创建客户端前过滤。"""
+    # 默认空集合：应用层不默认跳过任何账号
+    skipped = set(skip_accounts or ())
     summary = RunSummary()
     total = len(bduss_list)
     for index, bduss in enumerate(bduss_list, start=1):
         label = account_label(index)
+        if index in skipped:
+            # 不创建 client、不发请求；凭证仍留在列表/Secret 中
+            account = AccountSummary(index=index, label=label, skipped=True)
+            summary.accounts.append(account)
+            logger.info("%s/%s 已跳过（凭证保留，本次不执行）", label, total)
+            continue
+
         logger.info("开始处理 %s/%s", label, total)
         account = await run_account(index, bduss, sign_interval=sign_interval)
         summary.accounts.append(account)
@@ -115,9 +148,12 @@ def format_summary(summary: RunSummary) -> str:
     if not summary.accounts:
         return "没有可处理的账号。"
 
-    lines = ["===== 贴吧签到汇总 ====="]
+    lines = ["===== 运行汇总 ====="]
     for account in summary.accounts:
         head = f"[{account.label}]"
+        if account.skipped:
+            lines.append(f"{head}: ⏭️ 已跳过（凭证保留）")
+            continue
         if account.error:
             lines.append(f"{head}: ❌ {account.error}")
             continue

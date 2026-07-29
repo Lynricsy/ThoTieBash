@@ -45,12 +45,14 @@ class AccountSummary:
     already: int = 0
     blocked: int = 0
     failed: int = 0
+    skipped: bool = False
     error: str | None = None
     details: list[ForumSignResult] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
-        return self.error is None and self.failed == 0
+        # 主动跳过视为成功（凭证仍保留，只是不跑）
+        return self.skipped or (self.error is None and self.failed == 0)
 
 
 @dataclass(slots=True)
