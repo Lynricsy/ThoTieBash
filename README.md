@@ -27,27 +27,33 @@
 # 需要 uv（或自行创建 venv 后 pip install -e .）
 uv sync
 
-# 推荐：环境变量（不会进入 argv / shell 历史里的明文参数）
-export BDUSS='你的BDUSS'
+# 推荐：静默读入环境变量（不回显，也不把凭证写进 shell 历史）
+read -rsp 'BDUSS: ' BDUSS
+echo
+export BDUSS
 uv run tieba-autosign
 
-# 多账号同样走环境变量，使用 # / 逗号 / 换行分隔
-export BDUSS='账号1的BDUSS#账号2的BDUSS'
+# 多账号：同样用 read 读入，内容可用 # / 逗号 / 换行分隔
+read -rsp 'BDUSS (multi): ' BDUSS
+echo
+export BDUSS
 uv run tieba-autosign --interval 1.0
 ```
 
-也可以从文件或 stdin 读取（文件权限请设为仅本人可读）：
+也可以从权限受限的本地文件读取：
 
 ```bash
+# 用编辑器写入凭证后：
 chmod 600 bduss.txt
 uv run tieba-autosign --bduss-file bduss.txt
-
-# 或管道（注意控制 shell 历史，例如 set +o history）
-printenv BDUSS | uv run tieba-autosign --bduss-file -
 ```
 
-> 安全约定：**不要**使用命令行明文参数传入 BDUSS。
-> 凭证只应来自环境变量、Actions Secret、权限受限的本地文件或 stdin。
+CI / 定时任务请使用 **Actions Secret**（或 systemd/cron 的 EnvironmentFile），不要在文档或脚本里粘贴明文凭证。
+
+> 安全约定：
+> - **不要** `export BDUSS='真实值'`（会进 shell 历史）
+> - **不要** 使用命令行明文参数传入 BDUSS（会进 argv / 历史）
+> - 凭证只应来自：静默 `read`、Actions Secret、权限 600 的本地文件
 
 ### 获取 BDUSS
 
@@ -83,8 +89,8 @@ printenv BDUSS | uv run tieba-autosign --bduss-file -
 安全底线：
 
 - 接口全部 `https://`
-- `BDUSS` 只进环境变量 / Actions Secret / 本地文件 / stdin
-- **禁止**命令行明文 `--bduss`（避免 shell 历史与进程参数泄露）
+- `BDUSS` 只进静默 `read` 导出的环境变量 / Actions Secret / 权限 600 文件
+- **禁止** `export BDUSS='明文'` 与命令行 `--bduss`（避免 shell 历史与进程参数泄露）
 - 日志输出脱敏
 
 ## 退出码
