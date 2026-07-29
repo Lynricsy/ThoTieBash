@@ -15,7 +15,7 @@ WEB_BASE_HOST = "tieba.baidu.com"
 # 签名盐，贴吧客户端长期使用
 APP_SALT = b"tiebaclient!!!"
 
-TBS_URL = f"https://{WEB_BASE_HOST}/dc/common/tbs"
+
 LOGIN_URL = f"https://{APP_BASE_HOST}/c/s/login"
 LIKE_URL = f"https://{APP_BASE_HOST}/c/f/forum/like"
 SIGN_URL = f"https://{APP_BASE_HOST}/c/c/forum/sign"

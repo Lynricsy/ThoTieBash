@@ -24,7 +24,6 @@ from .const import (
     NET_TYPE,
     PHONE_IMEI,
     SIGN_URL,
-    TBS_URL,
 )
 from .crypto import sign_payload
 from .models import Forum, ForumSignResult, SignStatus
@@ -65,7 +64,8 @@ class TiebaClient:
                 ),
                 "Accept-Encoding": "gzip",
             },
-            follow_redirects=True,
+            # 禁止跟随到 http:// 的降级跳转，避免 BDUSS 明文落网
+            follow_redirects=False,
         )
 
     async def __aenter__(self) -> TiebaClient:
@@ -79,19 +79,12 @@ class TiebaClient:
             await self._client.aclose()
 
     async def get_tbs(self) -> str:
-        """获取 tbs，并校验登录态。"""
-        response = await self._request(
-            "GET",
-            TBS_URL,
-            headers={"Cookie": f"BDUSS={self.bduss}"},
-        )
-        if int(response.get("is_login", 0)) != 1:
-            # 网页 tbs 判定失败时，回退客户端登录接口
-            return await self._login_for_tbs()
-        tbs = str(response.get("tbs") or "").strip()
-        if not tbs:
-            raise TiebaAuthError("tbs 为空，登录态可能失效")
-        return tbs
+        """获取 tbs。
+
+        仅走 HTTPS 客户端登录接口。网页 tbs 接口会 301 到 http，
+        不能作为凭证传输路径。
+        """
+        return await self._login_for_tbs()
 
     async def _login_for_tbs(self) -> str:
         payload = sign_payload(
