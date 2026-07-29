@@ -5,11 +5,17 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
+import httpx
 import pytest
 
 from tieba_autosign.cli import resolve_bduss_source
-from tieba_autosign.client import TiebaClient
-from tieba_autosign.const import APP_SALT
+from tieba_autosign.client import (
+    InsecureRedirectError,
+    TiebaAPIError,
+    TiebaClient,
+    is_https_to_http_redirect,
+)
+from tieba_autosign.const import APP_SALT, LOGIN_URL
 from tieba_autosign.crypto import sign_payload
 from tieba_autosign.models import AccountSummary, Forum, ForumSignResult, RunSummary, SignStatus
 from tieba_autosign.runner import format_summary, load_bduss_list, mask_bduss
@@ -95,3 +101,60 @@ def test_format_summary_reports_failures() -> None:
 async def test_missing_bduss_rejected() -> None:
     with pytest.raises(ValueError):
         TiebaClient("   ")
+
+
+def test_detect_https_to_http_redirect() -> None:
+    assert is_https_to_http_redirect(
+        "https://tieba.baidu.com/dc/common/tbs",
+        "http://tieba.baidu.com/dc/common/tbs?red_tag=1",
+    )
+    assert not is_https_to_http_redirect(
+        "https://tiebac.baidu.com/c/s/login",
+        "https://tiebac.baidu.com/c/s/login",
+    )
+
+
+@pytest.mark.asyncio
+async def test_request_rejects_https_to_http_redirect() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            301,
+            headers={"Location": "http://tieba.baidu.com/dc/common/tbs"},
+            request=request,
+        )
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport, follow_redirects=False) as session:
+        client = TiebaClient("demo-bduss-token", client=session)
+        with pytest.raises(InsecureRedirectError):
+            await client._request("GET", "https://tieba.baidu.com/dc/common/tbs")
+
+
+@pytest.mark.asyncio
+async def test_request_rejects_plain_http_url() -> None:
+    async with httpx.AsyncClient(follow_redirects=False) as session:
+        client = TiebaClient("demo-bduss-token", client=session)
+        with pytest.raises(TiebaAPIError, match="拒绝非 HTTPS"):
+            await client._request("GET", "http://example.com")
+
+
+@pytest.mark.asyncio
+async def test_get_tbs_uses_https_login() -> None:
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        assert str(request.url).startswith("https://")
+        return httpx.Response(
+            200,
+            json={"error_code": "0", "anti": {"tbs": "tbsofficial"}},
+            request=request,
+        )
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport, follow_redirects=False) as session:
+        client = TiebaClient("demo-bduss-token", client=session)
+        tbs = await client.get_tbs()
+
+    assert tbs == "tbsofficial"
+    assert seen == [LOGIN_URL]

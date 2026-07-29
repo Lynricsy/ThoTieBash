@@ -39,6 +39,19 @@ class TiebaAPIError(RuntimeError):
     """贴吧接口返回业务错误。"""
 
 
+class InsecureRedirectError(TiebaAPIError):
+    """检测到 HTTPS 请求被重定向到 HTTP。"""
+
+
+def is_https_to_http_redirect(source_url: str, location: str | None) -> bool:
+    """判断 Location 是否构成 HTTPS→HTTP 降级。"""
+    if not location:
+        return False
+    source = httpx.URL(source_url)
+    target = source.join(location)
+    return source.scheme == "https" and target.scheme == "http"
+
+
 class TiebaClient:
     """基于 httpx 的异步贴吧签到客户端。"""
 
@@ -227,6 +240,9 @@ class TiebaClient:
         headers: dict[str, str] | None = None,
         retries: int = 3,
     ) -> dict[str, Any]:
+        if not url.startswith("https://"):
+            raise TiebaAPIError(f"拒绝非 HTTPS 请求: {url}")
+
         last_error: Exception | None = None
         for attempt in range(1, retries + 1):
             try:
@@ -236,6 +252,16 @@ class TiebaClient:
                     data=data,
                     headers=headers,
                 )
+                if response.is_redirect:
+                    location = response.headers.get("location")
+                    if is_https_to_http_redirect(str(response.request.url), location):
+                        raise InsecureRedirectError(
+                            f"拒绝 HTTPS→HTTP 重定向: {url} -> {location}"
+                        )
+                    raise TiebaAPIError(
+                        f"未跟随的重定向 ({response.status_code}): {url} -> {location}"
+                    )
+
                 response.raise_for_status()
                 if not response.content:
                     raise TiebaAPIError(f"空响应: {url}")
@@ -243,6 +269,9 @@ class TiebaClient:
                 if not isinstance(payload, dict):
                     raise TiebaAPIError(f"响应不是 JSON 对象: {url}")
                 return payload
+            except InsecureRedirectError:
+                # 安全违规不重试
+                raise
             except (httpx.HTTPError, ValueError, TiebaAPIError) as exc:
                 last_error = exc
                 if attempt >= retries:
