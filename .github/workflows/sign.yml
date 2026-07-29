@@ -1,0 +1,49 @@
+name: Tieba Auto Sign
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 约北京时间 00:05 / 06:05
+    - cron: "5 16,22 * * *"
+  push:
+    branches:
+      - master
+      - main
+    paths:
+      - "src/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/sign.yml"
+
+concurrency:
+  group: tieba-sign
+  cancel-in-progress: false
+
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: "3.14"
+
+      - name: Install package
+        run: uv sync --frozen
+
+      - name: Run sign
+        env:
+          BDUSS: ${{ secrets.BDUSS }}
+          SIGN_INTERVAL: ${{ secrets.SIGN_INTERVAL }}
+        run: |
+          if [ -z "${BDUSS}" ]; then
+            echo "缺少 secrets.BDUSS，请在仓库 Settings → Secrets 中配置。"
+            exit 2
+          fi
+          INTERVAL="${SIGN_INTERVAL:-0.8}"
+          uv run tieba-autosign --interval "${INTERVAL}"

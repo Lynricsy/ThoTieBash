@@ -1,0 +1,34 @@
+name: Keep Alive
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 每月 1 日，降低 Actions 因长期无提交被限制的风险
+    - cron: "0 0 1 * *"
+
+permissions:
+  contents: write
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Touch keepalive marker
+        run: |
+          mkdir -p .github
+          date -u +"%Y-%m-%dT%H:%M:%SZ" > .github/last_activity.txt
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/last_activity.txt
+          if git diff --staged --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "chore(ci): ♻️ keep workflow alive"
+          git push
