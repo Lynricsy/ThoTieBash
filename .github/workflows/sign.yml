@@ -1,4 +1,4 @@
-name: Tieba Auto Sign
+name: Daily Job
 
 on:
   workflow_dispatch:

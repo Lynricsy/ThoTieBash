@@ -1,7 +1,7 @@
 [project]
 name = "tieba-autosign"
 version = "0.1.0"
-description = "百度贴吧自动签到（Python 3.14 + httpx + GitHub Actions）"
+description = "private personal utility"
 readme = "README.md"
 authors = [
     { name = "Lynricsy", email = "im@ling.plus" }
@@ -10,7 +10,7 @@ requires-python = ">=3.14"
 dependencies = [
     "httpx>=0.28.1",
 ]
-keywords = ["tieba", "baidu", "autosign", "github-actions"]
+keywords = []
 license = "Apache-2.0"
 classifiers = [
     "Development Status :: 4 - Beta",

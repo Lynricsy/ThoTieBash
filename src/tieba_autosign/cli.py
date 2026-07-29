@@ -11,10 +11,9 @@ from pathlib import Path
 from .runner import format_summary, load_bduss_list, run_all
 
 
-def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="tieba-autosign",
-        description="百度贴吧自动签到（HTTPS / 现代 Python）",
+        description="private personal utility",
     )
     parser.add_argument(
         "--bduss-file",
