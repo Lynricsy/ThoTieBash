@@ -22,9 +22,13 @@ def mask_bduss(bduss: str) -> str:
 
 def load_bduss_list(raw: str | None = None) -> list[str]:
     """
-    从环境变量或显式字符串解析多账号 BDUSS。
+    解析多账号 BDUSS。
+
+    - raw 为 None：读取环境变量 BDUSS
+    - raw 为字符串：解析该文本（供文件 / stdin 使用）
 
     支持分隔符：`#`、换行、英文逗号。
+    不要把凭证放进命令行参数。
     """
     text = raw if raw is not None else os.environ.get("BDUSS", "")
     if not text or not text.strip():

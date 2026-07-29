@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import logging
 import sys
+from pathlib import Path
 
 from .runner import format_summary, load_bduss_list, run_all
 
@@ -16,8 +17,13 @@ def build_parser() -> argparse.ArgumentParser:
         description="百度贴吧自动签到（HTTPS / 现代 Python）",
     )
     parser.add_argument(
-        "--bduss",
-        help="显式传入 BDUSS；多账号可用 # / 逗号 / 换行分隔。默认读取环境变量 BDUSS",
+        "--bduss-file",
+        metavar="PATH",
+        help=(
+            "从文件读取 BDUSS（支持多账号分隔）。"
+            "使用 '-' 表示从标准输入读取。"
+            "默认读取环境变量 BDUSS。"
+        ),
     )
     parser.add_argument(
         "--interval",
@@ -42,17 +48,43 @@ def configure_logging(level: str) -> None:
     )
 
 
+def resolve_bduss_source(bduss_file: str | None) -> list[str]:
+    """仅允许环境变量 / 文件 / stdin，禁止命令行明文凭证。"""
+    if bduss_file is None:
+        return load_bduss_list()
+
+    if bduss_file == "-":
+        raw = sys.stdin.read()
+        return load_bduss_list(raw)
+
+    path = Path(bduss_file)
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        logging.error("无法读取 BDUSS 文件 %s: %s", path, exc)
+        return []
+    return load_bduss_list(raw)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    configure_logging(args.log_level)
+    log_level = str(args.log_level)
+    interval = float(args.interval)
+    bduss_file = args.bduss_file
+    configure_logging(log_level)
 
-    bduss_list = load_bduss_list(args.bduss)
+    bduss_list = resolve_bduss_source(
+        None if bduss_file is None else str(bduss_file)
+    )
     if not bduss_list:
-        logging.error("未提供 BDUSS。请设置环境变量 BDUSS，或使用 --bduss 传入。")
+        logging.error(
+            "未提供 BDUSS。请设置环境变量 BDUSS，"
+            "或使用 --bduss-file / --bduss-file -（stdin）。"
+        )
         return 2
 
-    summary = asyncio.run(run_all(bduss_list, sign_interval=args.interval))
+    summary = asyncio.run(run_all(bduss_list, sign_interval=interval))
     print(format_summary(summary))
     return 0 if summary.ok else 1
 

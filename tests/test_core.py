@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import hashlib
+from pathlib import Path
 
 import pytest
 
+from tieba_autosign.cli import resolve_bduss_source
 from tieba_autosign.client import TiebaClient
 from tieba_autosign.const import APP_SALT
 from tieba_autosign.crypto import sign_payload
@@ -29,6 +31,12 @@ def test_sign_payload_matches_client_algorithm() -> None:
 def test_load_bduss_list_supports_multiple_separators() -> None:
     raw = "aaa#bbb, ccc\nddd\n\n"
     assert load_bduss_list(raw) == ["aaa", "bbb", "ccc", "ddd"]
+
+
+def test_resolve_bduss_source_from_file(tmp_path: Path) -> None:
+    path = tmp_path / "bduss.txt"
+    path.write_text("aaa#bbb\n", encoding="utf-8")
+    assert resolve_bduss_source(str(path)) == ["aaa", "bbb"]
 
 
 def test_mask_bduss() -> None:

@@ -26,15 +26,28 @@
 ```bash
 # 需要 uv（或自行创建 venv 后 pip install -e .）
 uv sync
+
+# 推荐：环境变量（不会进入 argv / shell 历史里的明文参数）
 export BDUSS='你的BDUSS'
 uv run tieba-autosign
+
+# 多账号同样走环境变量，使用 # / 逗号 / 换行分隔
+export BDUSS='账号1的BDUSS#账号2的BDUSS'
+uv run tieba-autosign --interval 1.0
 ```
 
-也可以：
+也可以从文件或 stdin 读取（文件权限请设为仅本人可读）：
 
 ```bash
-uv run python -m tieba_autosign --bduss 'xxx#yyy' --interval 1.0
+chmod 600 bduss.txt
+uv run tieba-autosign --bduss-file bduss.txt
+
+# 或管道（注意控制 shell 历史，例如 set +o history）
+printenv BDUSS | uv run tieba-autosign --bduss-file -
 ```
+
+> 安全约定：**不要**使用命令行明文参数传入 BDUSS。
+> 凭证只应来自环境变量、Actions Secret、权限受限的本地文件或 stdin。
 
 ### 获取 BDUSS
 
@@ -70,7 +83,8 @@ uv run python -m tieba_autosign --bduss 'xxx#yyy' --interval 1.0
 安全底线：
 
 - 接口全部 `https://`
-- `BDUSS` 只进环境变量 / Actions Secret
+- `BDUSS` 只进环境变量 / Actions Secret / 本地文件 / stdin
+- **禁止**命令行明文 `--bduss`（避免 shell 历史与进程参数泄露）
 - 日志输出脱敏
 
 ## 退出码
