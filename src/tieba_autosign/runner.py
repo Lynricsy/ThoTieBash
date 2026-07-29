@@ -12,12 +12,9 @@ from .models import AccountSummary, RunSummary, SignStatus
 logger = logging.getLogger(__name__)
 
 
-def mask_bduss(bduss: str) -> str:
-    """日志脱敏，只保留首尾少量字符。"""
-    token = bduss.strip()
-    if len(token) <= 10:
-        return "***"
-    return f"{token[:4]}...{token[-4:]}"
+def account_label(index: int) -> str:
+    """仅用账号序号标识，绝不输出 BDUSS 任何片段。"""
+    return f"账号{index}"
 
 
 def load_bduss_list(raw: str | None = None) -> list[str]:
@@ -46,7 +43,7 @@ def load_bduss_list(raw: str | None = None) -> list[str]:
 
 async def run_account(index: int, bduss: str, *, sign_interval: float) -> AccountSummary:
     """执行单个账号签到。"""
-    label = mask_bduss(bduss)
+    label = account_label(index)
     summary = AccountSummary(index=index, label=label)
 
     try:
@@ -55,7 +52,7 @@ async def run_account(index: int, bduss: str, *, sign_interval: float) -> Accoun
             forums = await client.list_favorite_forums()
             summary.forums = len(forums)
             if not forums:
-                logger.warning("账号 %s 未获取到关注贴吧", label)
+                logger.warning("%s 未获取到关注贴吧", label)
                 return summary
 
             details = await client.sign_all(forums, tbs)
@@ -71,10 +68,10 @@ async def run_account(index: int, bduss: str, *, sign_interval: float) -> Accoun
                     summary.failed += 1
     except TiebaAuthError as exc:
         summary.error = f"认证失败: {exc}"
-        logger.error("账号 %s 认证失败: %s", label, exc)
+        logger.error("%s 认证失败: %s", label, exc)
     except Exception as exc:  # noqa: BLE001 - 顶层汇总
         summary.error = f"执行异常: {exc}"
-        logger.exception("账号 %s 执行异常", label)
+        logger.exception("%s 执行异常", label)
 
     return summary
 
@@ -88,20 +85,21 @@ async def run_all(
     summary = RunSummary()
     total = len(bduss_list)
     for index, bduss in enumerate(bduss_list, start=1):
-        logger.info("开始处理账号 %s/%s (%s)", index, total, mask_bduss(bduss))
+        label = account_label(index)
+        logger.info("开始处理 %s/%s", label, total)
         account = await run_account(index, bduss, sign_interval=sign_interval)
         summary.accounts.append(account)
         if account.error:
             logger.error(
-                "账号 %s/%s 结束: 失败 - %s",
-                index,
+                "%s/%s 结束: 失败 - %s",
+                label,
                 total,
                 account.error,
             )
         else:
             logger.info(
-                "账号 %s/%s 结束: 总数=%s 成功=%s 已签=%s 屏蔽=%s 失败=%s",
-                index,
+                "%s/%s 结束: 总数=%s 成功=%s 已签=%s 屏蔽=%s 失败=%s",
+                label,
                 total,
                 account.forums,
                 account.success,
@@ -119,7 +117,7 @@ def format_summary(summary: RunSummary) -> str:
 
     lines = ["===== 贴吧签到汇总 ====="]
     for account in summary.accounts:
-        head = f"[账号{account.index}] {account.label}"
+        head = f"[{account.label}]"
         if account.error:
             lines.append(f"{head}: ❌ {account.error}")
             continue

@@ -18,7 +18,7 @@ from tieba_autosign.client import (
 from tieba_autosign.const import APP_SALT, LOGIN_URL
 from tieba_autosign.crypto import sign_payload
 from tieba_autosign.models import AccountSummary, Forum, ForumSignResult, RunSummary, SignStatus
-from tieba_autosign.runner import format_summary, load_bduss_list, mask_bduss
+from tieba_autosign.runner import account_label, format_summary, load_bduss_list
 
 
 def test_sign_payload_matches_client_algorithm() -> None:
@@ -45,9 +45,9 @@ def test_resolve_bduss_source_from_file(tmp_path: Path) -> None:
     assert resolve_bduss_source(str(path)) == ["aaa", "bbb"]
 
 
-def test_mask_bduss() -> None:
-    assert mask_bduss("short") == "***"
-    assert mask_bduss("1234567890abcdef") == "1234...cdef"
+def test_account_label_has_no_token_fragment() -> None:
+    assert account_label(1) == "账号1"
+    assert account_label(2) == "账号2"
 
 
 def test_extract_forums_handles_nested_shapes() -> None:
@@ -72,7 +72,7 @@ def test_format_summary_reports_failures() -> None:
         accounts=[
             AccountSummary(
                 index=1,
-                label="abcd...wxyz",
+                label="账号1",
                 forums=2,
                 success=1,
                 failed=1,
