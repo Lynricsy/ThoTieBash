@@ -11,6 +11,7 @@ from pathlib import Path
 from .runner import format_summary, load_bduss_list, run_all
 
 
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="tieba-autosign",
         description="private personal utility",
@@ -28,7 +29,7 @@ from .runner import format_summary, load_bduss_list, run_all
         "--interval",
         type=float,
         default=0.8,
-        help="同一账号内贴吧签到间隔秒数，默认 0.8",
+        help="同一账号内请求间隔秒数，默认 0.8",
     )
     parser.add_argument(
         "--log-level",
@@ -60,7 +61,7 @@ def resolve_bduss_source(bduss_file: str | None) -> list[str]:
     try:
         raw = path.read_text(encoding="utf-8")
     except OSError as exc:
-        logging.error("无法读取 BDUSS 文件 %s: %s", path, exc)
+        logging.error("无法读取凭证文件 %s: %s", path, exc)
         return []
     return load_bduss_list(raw)
 
@@ -78,7 +79,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     if not bduss_list:
         logging.error(
-            "未提供 BDUSS。请设置环境变量 BDUSS，"
+            "未提供凭证。请设置环境变量 BDUSS，"
             "或使用 --bduss-file / --bduss-file -（stdin）。"
         )
         return 2
